@@ -84,6 +84,8 @@ impl HistoryManager {
 
     fn init_database(&self) -> Result<()> {
         let conn = Connection::open(&self.db_path)?;
+
+        // Create table if it doesn't exist
         conn.execute(
             "CREATE TABLE IF NOT EXISTS transcription_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +98,24 @@ impl HistoryManager {
             )",
             [],
         )?;
+
+        // Check if processed_text column exists, add it if missing (for existing databases)
+        let column_exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('transcription_history') WHERE name='processed_text'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0) > 0;
+
+        if !column_exists {
+            debug!("Adding processed_text column to existing database");
+            conn.execute(
+                "ALTER TABLE transcription_history ADD COLUMN processed_text TEXT NULL",
+                [],
+            )?;
+        }
+
         debug!("Database initialized at: {:?}", self.db_path);
         Ok(())
     }
