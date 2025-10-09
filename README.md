@@ -45,6 +45,55 @@ The process is entirely local:
 
 For detailed build instructions including platform-specific requirements, see [BUILD.md](BUILD.md).
 
+## AI Summarization (Optional)
+
+Handy can optionally process your transcriptions with a local AI to improve formatting, grammar, and tone. This feature requires [Ollama](https://ollama.ai) or a compatible LLM service running locally.
+
+### Setup
+
+1. **Install Ollama**:
+   ```bash
+   # macOS/Linux
+   curl https://ollama.ai/install.sh | sh
+
+   # Or on macOS with Homebrew
+   brew install ollama
+   ```
+
+2. **Pull a model**:
+   ```bash
+   ollama pull llama3.2
+   ```
+
+3. **Enable in Handy**:
+   - Open Handy Settings
+   - Navigate to AI Summarization section (when UI is available)
+   - Toggle "Enable AI Summarization"
+   - Choose your profile and start transcribing
+
+### Built-in Profiles
+
+- **Professional**: Formal tone suitable for workplace communication
+- **LLM Agent Instructions**: Clear, structured instructions for AI agents
+- **Email**: Well-formatted emails with proper structure
+- **Notes**: Concise bullet points and key phrases
+- **Code Comments**: Technical documentation style
+- **Raw**: No processing (bypass AI, use raw transcription)
+
+You can also create custom profiles for your specific needs.
+
+### Privacy
+
+All AI processing happens locally on your machine. No data is sent to the cloud. You maintain complete control over your transcriptions and the LLM service used.
+
+### Troubleshooting
+
+If AI Summarization isn't working:
+- Verify Ollama is running: `ollama serve`
+- Check the model is installed: `ollama list`
+- Test the connection in Handy settings
+- Ensure the endpoint matches your Ollama installation (default: `http://localhost:11434`)
+
 ## Architecture
 
 Handy is built as a Tauri application combining:

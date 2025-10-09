@@ -1,5 +1,5 @@
 import React from "react";
-import { Cog, FlaskConical, History, Info } from "lucide-react";
+import { Cog, FlaskConical, History, Info, Sparkles } from "lucide-react";
 import HandyTextLogo from "./icons/HandyTextLogo";
 import HandyHand from "./icons/HandyHand";
 import { useSettings } from "../hooks/useSettings";
@@ -9,6 +9,7 @@ import {
   HistorySettings,
   DebugSettings,
   AboutSettings,
+  SummarizationSettings,
 } from "./settings";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
@@ -39,6 +40,12 @@ export const SECTIONS_CONFIG = {
     label: "Advanced",
     icon: Cog,
     component: AdvancedSettings,
+    enabled: () => true,
+  },
+  summarization: {
+    label: "AI Summary",
+    icon: Sparkles,
+    component: SummarizationSettings,
     enabled: () => true,
   },
   history: {

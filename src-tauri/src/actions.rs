@@ -1,6 +1,7 @@
 use crate::audio_feedback::{play_recording_start_sound, play_recording_stop_sound};
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
+use crate::managers::summarization::SummarizationManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::overlay::{show_recording_overlay, show_transcribing_overlay};
 use crate::settings::get_settings;
@@ -78,6 +79,7 @@ impl ShortcutAction for TranscribeAction {
         let rm = Arc::clone(&app.state::<Arc<AudioRecordingManager>>());
         let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
         let hm = Arc::clone(&app.state::<Arc<HistoryManager>>());
+        let sm = Arc::clone(&app.state::<Arc<SummarizationManager>>());
 
         change_tray_icon(app, TrayIconState::Transcribing);
         show_transcribing_overlay(app);
@@ -105,29 +107,69 @@ impl ShortcutAction for TranscribeAction {
                 let transcription_time = Instant::now();
                 let samples_clone = samples.clone(); // Clone for history saving
                 match tm.transcribe(samples) {
-                    Ok(transcription) => {
+                    Ok(raw_transcription) => {
                         debug!(
                             "Transcription completed in {:?}: '{}'",
                             transcription_time.elapsed(),
-                            transcription
+                            raw_transcription
                         );
-                        if !transcription.is_empty() {
-                            // Save to history
+                        if !raw_transcription.is_empty() {
+                            let settings = get_settings(&ah);
+
+                            // NEW: Post-processing step for AI summarization
+                            let processing_time = Instant::now();
+                            let final_text = if settings.enable_summarization {
+                                let sm_clone = Arc::clone(&sm);
+                                let raw_text = raw_transcription.clone();
+                                let profile_id = settings.active_profile_id.clone();
+
+                                match sm_clone.process_with_profile(&raw_text, &profile_id).await {
+                                    Ok(processed) => {
+                                        debug!(
+                                            "Summarization completed in {:?}: {} chars -> {} chars",
+                                            processing_time.elapsed(),
+                                            raw_text.len(),
+                                            processed.len()
+                                        );
+                                        processed
+                                    }
+                                    Err(e) => {
+                                        error!("Summarization failed, using raw text: {}", e);
+                                        raw_transcription.clone()
+                                    }
+                                }
+                            } else {
+                                raw_transcription.clone()
+                            };
+
+                            // Save to history with both versions
                             let hm_clone = Arc::clone(&hm);
-                            let transcription_for_history = transcription.clone();
+                            let transcription_for_history = raw_transcription.clone();
+                            let processed_for_history = if settings.enable_summarization {
+                                Some(final_text.clone())
+                            } else {
+                                None
+                            };
+
                             tauri::async_runtime::spawn(async move {
                                 if let Err(e) = hm_clone
-                                    .save_transcription(samples_clone, transcription_for_history)
+                                    .save_transcription_with_processed(
+                                        samples_clone,
+                                        transcription_for_history,
+                                        processed_for_history,
+                                    )
                                     .await
                                 {
                                     error!("Failed to save transcription to history: {}", e);
                                 }
                             });
-                            let transcription_clone = transcription.clone();
+
+                            // Paste final text (either processed or raw)
+                            let final_text_clone = final_text.clone();
                             let ah_clone = ah.clone();
                             let paste_time = Instant::now();
                             ah.run_on_main_thread(move || {
-                                match utils::paste(transcription_clone, ah_clone.clone()) {
+                                match utils::paste(final_text_clone, ah_clone.clone()) {
                                     Ok(()) => debug!(
                                         "Text pasted successfully in {:?}",
                                         paste_time.elapsed()

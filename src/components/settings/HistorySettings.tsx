@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { SettingsGroup } from "../ui/SettingsGroup";
 import { AudioPlayer } from "../ui/AudioPlayer";
-import { ClipboardCopy, Star, Check, Trash2, Loader2 } from "lucide-react";
+import { ClipboardCopy, Star, Check, Trash2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -12,6 +12,7 @@ interface HistoryEntry {
   saved: boolean;
   title: string;
   transcription_text: string;
+  processed_text?: string | null;
 }
 
 export const HistorySettings: React.FC = () => {
@@ -152,6 +153,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
 }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [showCopied, setShowCopied] = useState(false);
+  const [showProcessed, setShowProcessed] = useState(false);
 
   useEffect(() => {
     const loadAudio = async () => {
@@ -175,6 +177,8 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       alert("Failed to delete entry. Please try again.");
     }
   };
+
+  const hasProcessedText = entry.processed_text && entry.processed_text.trim().length > 0;
 
   return (
     <div className="px-4 py-2 pb-5 flex flex-col gap-3">
@@ -219,6 +223,36 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       <p className="italic text-text/90 text-sm pb-2">
         {entry.transcription_text}
       </p>
+
+      {hasProcessedText && (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setShowProcessed(!showProcessed)}
+            className="flex items-center gap-2 text-sm text-text/70 hover:text-logo-primary transition-colors cursor-pointer w-fit"
+          >
+            {showProcessed ? (
+              <ChevronDown width={16} height={16} />
+            ) : (
+              <ChevronRight width={16} height={16} />
+            )}
+            <span>{showProcessed ? "Hide Processed Version" : "Show Processed Version"}</span>
+          </button>
+
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              showProcessed ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="rounded-lg bg-text/5 border border-text/10 p-4">
+              <p className="text-xs font-medium text-text/60 mb-2">Processed Text:</p>
+              <p className="text-sm text-text/90 leading-relaxed whitespace-pre-wrap">
+                {entry.processed_text}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {audioUrl && <AudioPlayer src={audioUrl} className="w-full" />}
     </div>
   );

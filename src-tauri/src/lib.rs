@@ -13,6 +13,7 @@ mod utils;
 use managers::audio::AudioRecordingManager;
 use managers::history::HistoryManager;
 use managers::model::ModelManager;
+use managers::summarization::SummarizationManager;
 use managers::transcription::TranscriptionManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -164,12 +165,17 @@ pub fn run() {
             );
             let history_manager =
                 Arc::new(HistoryManager::new(&app).expect("Failed to initialize history manager"));
+            let summarization_manager = Arc::new(
+                SummarizationManager::new(&app)
+                    .expect("Failed to initialize summarization manager"),
+            );
 
             // Add managers to Tauri's managed state
             app.manage(recording_manager.clone());
             app.manage(model_manager.clone());
             app.manage(transcription_manager.clone());
             app.manage(history_manager.clone());
+            app.manage(summarization_manager.clone());
 
             // Create the recording overlay window (hidden by default)
             utils::create_recording_overlay(&app.handle());
@@ -242,7 +248,18 @@ pub fn run() {
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
-            commands::history::delete_history_entry
+            commands::history::delete_history_entry,
+            commands::summarization::change_summarization_enabled_setting,
+            commands::summarization::change_active_profile_setting,
+            commands::summarization::change_llm_endpoint_setting,
+            commands::summarization::change_llm_model_setting,
+            commands::summarization::change_llm_api_type_setting,
+            commands::summarization::change_llm_timeout_setting,
+            commands::summarization::save_custom_profile,
+            commands::summarization::delete_custom_profile,
+            commands::summarization::get_all_profiles,
+            commands::summarization::check_llm_connection,
+            commands::summarization::get_llm_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

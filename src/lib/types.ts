@@ -34,6 +34,17 @@ export const ModelUnloadTimeoutSchema = z.enum([
 ]);
 export type ModelUnloadTimeout = z.infer<typeof ModelUnloadTimeoutSchema>;
 
+export const ProfileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  system_prompt: z.string(),
+  user_prompt_template: z.string(),
+  is_built_in: z.boolean(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
 export const SettingsSchema = z.object({
   bindings: ShortcutBindingsMapSchema,
   push_to_talk: z.boolean(),
@@ -50,6 +61,13 @@ export const SettingsSchema = z.object({
   custom_words: z.array(z.string()).optional().default([]),
   model_unload_timeout: ModelUnloadTimeoutSchema.optional().default("never"),
   word_correction_threshold: z.number().optional().default(0.18),
+  // Summarization settings
+  enable_summarization: z.boolean().optional().default(false),
+  active_profile_id: z.string().optional().default("raw"),
+  llm_endpoint: z.string().optional().default("http://localhost:11434"),
+  llm_model: z.string().optional().default("llama3.2"),
+  custom_profiles: z.array(ProfileSchema).optional().default([]),
+  llm_timeout_seconds: z.number().optional().default(10),
 });
 
 export const BindingResponseSchema = z.object({
@@ -62,6 +80,7 @@ export type AudioDevice = z.infer<typeof AudioDeviceSchema>;
 export type BindingResponse = z.infer<typeof BindingResponseSchema>;
 export type ShortcutBinding = z.infer<typeof ShortcutBindingSchema>;
 export type ShortcutBindingsMap = z.infer<typeof ShortcutBindingsMapSchema>;
+export type Profile = z.infer<typeof ProfileSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 
 export const ModelInfoSchema = z.object({

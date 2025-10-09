@@ -1,3 +1,5 @@
+use crate::managers::profile::Profile;
+use crate::managers::summarization::ApiType;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::{App, AppHandle};
@@ -93,6 +95,21 @@ pub struct AppSettings {
     pub model_unload_timeout: ModelUnloadTimeout,
     #[serde(default = "default_word_correction_threshold")]
     pub word_correction_threshold: f64,
+    // AI Summarization settings
+    #[serde(default = "default_enable_summarization")]
+    pub enable_summarization: bool,
+    #[serde(default = "default_active_profile_id")]
+    pub active_profile_id: String,
+    #[serde(default = "default_llm_endpoint")]
+    pub llm_endpoint: String,
+    #[serde(default = "default_llm_model")]
+    pub llm_model: String,
+    #[serde(default)]
+    pub custom_profiles: Vec<Profile>,
+    #[serde(default = "default_llm_timeout_seconds")]
+    pub llm_timeout_seconds: u64,
+    #[serde(default = "default_llm_api_type")]
+    pub llm_api_type: ApiType,
 }
 
 fn default_model() -> String {
@@ -125,6 +142,30 @@ fn default_debug_mode() -> bool {
 
 fn default_word_correction_threshold() -> f64 {
     0.18
+}
+
+fn default_enable_summarization() -> bool {
+    false
+}
+
+fn default_active_profile_id() -> String {
+    "raw".to_string() // Default to no processing
+}
+
+fn default_llm_endpoint() -> String {
+    "http://localhost:11434".to_string() // Ollama default
+}
+
+fn default_llm_model() -> String {
+    "llama3.2".to_string() // Good default model
+}
+
+fn default_llm_timeout_seconds() -> u64 {
+    10
+}
+
+fn default_llm_api_type() -> ApiType {
+    ApiType::Ollama
 }
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
@@ -167,6 +208,13 @@ pub fn get_default_settings() -> AppSettings {
         custom_words: Vec::new(),
         model_unload_timeout: ModelUnloadTimeout::Never,
         word_correction_threshold: default_word_correction_threshold(),
+        enable_summarization: default_enable_summarization(),
+        active_profile_id: default_active_profile_id(),
+        llm_endpoint: default_llm_endpoint(),
+        llm_model: default_llm_model(),
+        custom_profiles: Vec::new(),
+        llm_timeout_seconds: default_llm_timeout_seconds(),
+        llm_api_type: default_llm_api_type(),
     }
 }
 

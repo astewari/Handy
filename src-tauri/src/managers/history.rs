@@ -20,6 +20,8 @@ pub struct HistoryEntry {
     pub saved: bool,
     pub title: String,
     pub transcription_text: String,
+    #[serde(default)]
+    pub processed_text: Option<String>,
 }
 
 #[derive(Clone)]
@@ -57,19 +59,27 @@ impl HistoryManager {
     }
 
     pub fn get_migrations() -> Vec<Migration> {
-        vec![Migration {
-            version: 1,
-            description: "create_transcription_history_table",
-            sql: "CREATE TABLE IF NOT EXISTS transcription_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_name TEXT NOT NULL,
-                timestamp INTEGER NOT NULL,
-                saved BOOLEAN NOT NULL DEFAULT 0,
-                title TEXT NOT NULL,
-                transcription_text TEXT NOT NULL
-            );",
-            kind: MigrationKind::Up,
-        }]
+        vec![
+            Migration {
+                version: 1,
+                description: "create_transcription_history_table",
+                sql: "CREATE TABLE IF NOT EXISTS transcription_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    saved BOOLEAN NOT NULL DEFAULT 0,
+                    title TEXT NOT NULL,
+                    transcription_text TEXT NOT NULL
+                );",
+                kind: MigrationKind::Up,
+            },
+            Migration {
+                version: 2,
+                description: "add_processed_text_column",
+                sql: "ALTER TABLE transcription_history ADD COLUMN processed_text TEXT NULL;",
+                kind: MigrationKind::Up,
+            },
+        ]
     }
 
     fn init_database(&self) -> Result<()> {
@@ -81,7 +91,8 @@ impl HistoryManager {
                 timestamp INTEGER NOT NULL,
                 saved BOOLEAN NOT NULL DEFAULT 0,
                 title TEXT NOT NULL,
-                transcription_text TEXT NOT NULL
+                transcription_text TEXT NOT NULL,
+                processed_text TEXT NULL
             )",
             [],
         )?;
@@ -99,6 +110,17 @@ impl HistoryManager {
         audio_samples: Vec<f32>,
         transcription_text: String,
     ) -> Result<()> {
+        self.save_transcription_with_processed(audio_samples, transcription_text, None)
+            .await
+    }
+
+    /// Save a transcription with optional processed text
+    pub async fn save_transcription_with_processed(
+        &self,
+        audio_samples: Vec<f32>,
+        transcription_text: String,
+        processed_text: Option<String>,
+    ) -> Result<()> {
         let timestamp = Utc::now().timestamp();
         let file_name = format!("handy-{}.wav", timestamp);
         let title = self.format_timestamp_title(timestamp);
@@ -108,7 +130,7 @@ impl HistoryManager {
         save_wav_file(file_path, &audio_samples).await?;
 
         // Save to database
-        self.save_to_database(file_name, timestamp, title, transcription_text)?;
+        self.save_to_database(file_name, timestamp, title, transcription_text, processed_text)?;
 
         // Clean up old entries
         self.cleanup_old_entries()?;
@@ -127,11 +149,12 @@ impl HistoryManager {
         timestamp: i64,
         title: String,
         transcription_text: String,
+        processed_text: Option<String>,
     ) -> Result<()> {
         let conn = self.get_connection()?;
         conn.execute(
-            "INSERT INTO transcription_history (file_name, timestamp, saved, title, transcription_text) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![file_name, timestamp, false, title, transcription_text],
+            "INSERT INTO transcription_history (file_name, timestamp, saved, title, transcription_text, processed_text) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![file_name, timestamp, false, title, transcription_text, processed_text],
         )?;
 
         debug!("Saved transcription to database");
@@ -185,7 +208,7 @@ impl HistoryManager {
     pub async fn get_history_entries(&self) -> Result<Vec<HistoryEntry>> {
         let conn = self.get_connection()?;
         let mut stmt = conn.prepare(
-            "SELECT id, file_name, timestamp, saved, title, transcription_text FROM transcription_history ORDER BY timestamp DESC"
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, processed_text FROM transcription_history ORDER BY timestamp DESC"
         )?;
 
         let rows = stmt.query_map([], |row| {
@@ -196,6 +219,7 @@ impl HistoryManager {
                 saved: row.get("saved")?,
                 title: row.get("title")?,
                 transcription_text: row.get("transcription_text")?,
+                processed_text: row.get("processed_text").ok(),
             })
         })?;
 
@@ -241,10 +265,10 @@ impl HistoryManager {
     pub async fn get_entry_by_id(&self, id: i64) -> Result<Option<HistoryEntry>> {
         let conn = self.get_connection()?;
         let mut stmt = conn.prepare(
-            "SELECT id, file_name, timestamp, saved, title, transcription_text 
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, processed_text
              FROM transcription_history WHERE id = ?1"
         )?;
-        
+
         let entry = stmt.query_row([id], |row| {
             Ok(HistoryEntry {
                 id: row.get("id")?,
@@ -253,9 +277,10 @@ impl HistoryManager {
                 saved: row.get("saved")?,
                 title: row.get("title")?,
                 transcription_text: row.get("transcription_text")?,
+                processed_text: row.get("processed_text").ok(),
             })
         }).optional()?;
-        
+
         Ok(entry)
     }
 

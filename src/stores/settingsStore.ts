@@ -195,8 +195,22 @@ export const useSettingsStore = create<SettingsStore>()(
           case "word_correction_threshold":
             await invoke("change_word_correction_threshold_setting", { threshold: value });
             break;
+          case "enable_summarization":
+            await invoke("change_summarization_enabled_setting", { enabled: value });
+            break;
+          case "active_profile_id":
+            await invoke("change_active_profile_setting", { profileId: value });
+            break;
+          case "llm_endpoint":
+            await invoke("change_llm_endpoint_setting", { endpoint: value });
+            break;
+          case "llm_model":
+            await invoke("change_llm_model_setting", { model: value });
+            break;
           case "bindings":
           case "selected_model":
+          case "custom_profiles":
+          case "llm_timeout_seconds":
             break;
           default:
             console.warn(`No handler for setting: ${String(key)}`);
