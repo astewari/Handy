@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{App, AppHandle};
+use tauri::{App, AppHandle, Emitter};
 
 /// Request format for Ollama API
 #[derive(Debug, Serialize, Deserialize)]
@@ -148,6 +148,13 @@ impl SummarizationManager {
         let endpoint = settings.llm_endpoint;
         let model = settings.llm_model;
 
+        // Determine timeout: profile-specific or global default
+        let timeout_secs = profile.timeout_seconds
+            .unwrap_or(settings.llm_timeout_seconds);
+
+        // Determine if streaming enabled: profile-specific or false by default
+        let enable_streaming = profile.enable_streaming.unwrap_or(false);
+
         // Detect API type based on endpoint
         let api_type = if endpoint.contains("/v1/") || settings.llm_api_type == ApiType::OpenAI {
             ApiType::OpenAI
@@ -156,26 +163,38 @@ impl SummarizationManager {
         };
 
         debug!(
-            "Processing with profile '{}', model '{}', API type: {:?}",
-            profile.name, model, api_type
+            "Processing with profile '{}', model '{}', API type: {:?}, timeout: {}s, streaming: {}",
+            profile.name, model, api_type, timeout_secs, enable_streaming
         );
 
         // Format prompt
         let user_prompt = profile.format_prompt(raw_text);
 
-        // Call appropriate API
+        // Create timeout-specific client
+        let client = Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()?;
+
+        // Call appropriate API with streaming support
         match api_type {
-            ApiType::Ollama => self.call_ollama(&endpoint, &model, &profile, &user_prompt).await,
+            ApiType::Ollama => {
+                if enable_streaming {
+                    self.call_ollama_streaming(&client, &endpoint, &model, &profile, &user_prompt).await
+                } else {
+                    self.call_ollama_non_streaming(&client, &endpoint, &model, &profile, &user_prompt).await
+                }
+            }
             ApiType::OpenAI => {
-                self.call_openai_compatible(&endpoint, &model, &profile, &user_prompt)
+                self.call_openai_compatible_with_client(&client, &endpoint, &model, &profile, &user_prompt)
                     .await
             }
         }
     }
 
-    /// Call Ollama API
-    async fn call_ollama(
+    /// Call Ollama API without streaming (original method, now internal)
+    async fn call_ollama_non_streaming(
         &self,
+        client: &Client,
         endpoint: &str,
         model: &str,
         profile: &Profile,
@@ -203,9 +222,8 @@ impl SummarizationManager {
             },
         };
 
-        debug!("Sending Ollama request to {}", url);
-        let response = self
-            .client
+        debug!("Sending Ollama non-streaming request to {}", url);
+        let response = client
             .post(&url)
             .json(&request)
             .send()
@@ -237,9 +255,109 @@ impl SummarizationManager {
         Ok(processed_text)
     }
 
-    /// Call OpenAI-compatible API (including Mistral)
-    async fn call_openai_compatible(
+    /// Call Ollama API with streaming (for progressive responses)
+    async fn call_ollama_streaming(
         &self,
+        client: &Client,
+        endpoint: &str,
+        model: &str,
+        profile: &Profile,
+        user_prompt: &str,
+    ) -> Result<String> {
+        use futures_util::StreamExt;
+
+        let url = format!("{}/api/generate", endpoint.trim_end_matches('/'));
+
+        // Combine system and user prompts
+        let combined_prompt = if !profile.system_prompt.is_empty() {
+            format!(
+                "System: {}\n\nUser: {}",
+                profile.system_prompt, user_prompt
+            )
+        } else {
+            user_prompt.to_string()
+        };
+
+        let request = OllamaRequest {
+            model: model.to_string(),
+            prompt: combined_prompt,
+            stream: true,  // Enable streaming
+            options: OllamaOptions {
+                temperature: 0.3,
+                top_p: 0.9,
+            },
+        };
+
+        debug!("Sending Ollama streaming request to {}", url);
+        let response = client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| {
+                error!("Ollama request failed: {}", e);
+                anyhow!("Failed to connect to Ollama: {}", e)
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            error!("Ollama returned error {}: {}", status, error_text);
+            return Err(anyhow!("Ollama error {}: {}", status, error_text));
+        }
+
+        // Process streaming response
+        let mut stream = response.bytes_stream();
+        let mut accumulated_text = String::new();
+
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(bytes) => {
+                    // Parse each line as JSON
+                    let text = String::from_utf8_lossy(&bytes);
+                    for line in text.lines() {
+                        if line.trim().is_empty() {
+                            continue;
+                        }
+
+                        match serde_json::from_str::<OllamaResponse>(line) {
+                            Ok(response_chunk) => {
+                                accumulated_text.push_str(&response_chunk.response);
+
+                                // Emit progress event
+                                let _ = self.app_handle.emit("summarization-progress", accumulated_text.clone());
+
+                                if response_chunk.done {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse streaming chunk: {}", e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error reading stream: {}", e);
+                    return Err(anyhow!("Stream error: {}", e));
+                }
+            }
+        }
+
+        let processed_text = accumulated_text.trim().to_string();
+        debug!(
+            "Ollama streaming complete: {} chars -> {} chars",
+            user_prompt.len(),
+            processed_text.len()
+        );
+
+        Ok(processed_text)
+    }
+
+    /// Call OpenAI-compatible API (including Mistral) with custom client
+    async fn call_openai_compatible_with_client(
+        &self,
+        client: &Client,
         endpoint: &str,
         model: &str,
         profile: &Profile,
@@ -274,7 +392,7 @@ impl SummarizationManager {
         };
 
         debug!("Sending OpenAI-compatible request to {}", url);
-        let response = self.client.post(&url).json(&request).send().await?;
+        let response = client.post(&url).json(&request).send().await?;
 
         if !response.status().is_success() {
             let status = response.status();

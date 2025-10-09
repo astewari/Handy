@@ -8,7 +8,7 @@ import { X, Edit, Trash2, Copy } from "lucide-react";
 interface ProfileManagerProps {
   onClose: () => void;
   profiles: Profile[];
-  onProfilesChange: () => Promise<void>;
+  onProfilesChange: () => void;
 }
 
 export const ProfileManager: React.FC<ProfileManagerProps> = ({

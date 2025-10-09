@@ -13,6 +13,12 @@ pub struct Profile {
     pub created_at: Option<String>,
     #[serde(default)]
     pub updated_at: Option<String>,
+    /// Timeout in seconds for this profile (None = use default)
+    #[serde(default)]
+    pub timeout_seconds: Option<u64>,
+    /// Enable streaming responses for this profile
+    #[serde(default)]
+    pub enable_streaming: Option<bool>,
 }
 
 impl Profile {
@@ -34,6 +40,8 @@ impl Profile {
             is_built_in: false,
             created_at: Some(now.clone()),
             updated_at: Some(now),
+            timeout_seconds: None,
+            enable_streaming: None,
         }
     }
 
@@ -56,6 +64,8 @@ pub fn get_built_in_profiles() -> Vec<Profile> {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: Some(15),
+            enable_streaming: Some(true),
         },
         Profile {
             id: "llm_agent".to_string(),
@@ -66,6 +76,8 @@ pub fn get_built_in_profiles() -> Vec<Profile> {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: Some(10),
+            enable_streaming: Some(true),
         },
         Profile {
             id: "email".to_string(),
@@ -76,6 +88,8 @@ pub fn get_built_in_profiles() -> Vec<Profile> {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: Some(20),
+            enable_streaming: Some(true),
         },
         Profile {
             id: "notes".to_string(),
@@ -86,6 +100,8 @@ pub fn get_built_in_profiles() -> Vec<Profile> {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: Some(10),
+            enable_streaming: Some(true),
         },
         Profile {
             id: "code_comments".to_string(),
@@ -96,6 +112,8 @@ pub fn get_built_in_profiles() -> Vec<Profile> {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: Some(10),
+            enable_streaming: Some(false),
         },
         Profile {
             id: "raw".to_string(),
@@ -106,6 +124,8 @@ pub fn get_built_in_profiles() -> Vec<Profile> {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: Some(0),
+            enable_streaming: Some(false),
         },
     ]
 }
@@ -125,6 +145,8 @@ mod tests {
             is_built_in: true,
             created_at: None,
             updated_at: None,
+            timeout_seconds: None,
+            enable_streaming: None,
         };
 
         let formatted = profile.format_prompt("hello world");
