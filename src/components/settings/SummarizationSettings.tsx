@@ -158,7 +158,35 @@ export const SummarizationSettings: React.FC = () => {
                 placeholder="Select a profile..."
               />
               {activeProfile && (
-                <p className="text-xs text-mid-gray">{activeProfile.description}</p>
+                <>
+                  <p className="text-xs text-mid-gray">{activeProfile.description}</p>
+                  {/* Profile Preview */}
+                  {activeProfile.id !== "raw" && (
+                    <div className="mt-3 p-3 bg-mid-gray/5 rounded-md border border-mid-gray/10 space-y-2">
+                      <div className="text-xs font-medium text-mid-gray">Profile Details:</div>
+                      {activeProfile.timeout_seconds && (
+                        <div className="text-xs text-mid-gray">
+                          ⏱️ Timeout: {activeProfile.timeout_seconds}s
+                        </div>
+                      )}
+                      {activeProfile.enable_streaming !== undefined && (
+                        <div className="text-xs text-mid-gray">
+                          {activeProfile.enable_streaming ? "⚡ Streaming enabled" : "📦 Non-streaming"}
+                        </div>
+                      )}
+                      {activeProfile.system_prompt && (
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-mid-gray hover:text-white">
+                            System Prompt
+                          </summary>
+                          <div className="mt-1 p-2 bg-black/20 rounded text-mid-gray whitespace-pre-wrap">
+                            {activeProfile.system_prompt}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -181,14 +209,25 @@ export const SummarizationSettings: React.FC = () => {
             <div className="space-y-2">
               <label className="block text-sm font-medium">Model</label>
               <div className="flex gap-2">
-                <Input
-                  value={localModel}
-                  onChange={(e) => setLocalModel(e.target.value)}
-                  onBlur={handleModelBlur}
-                  disabled={!enabled}
-                  placeholder="llama3.2"
-                  className="flex-1"
-                />
+                {availableModels.length > 0 ? (
+                  <Dropdown
+                    options={availableModels.map(m => ({ value: m, label: m }))}
+                    selectedValue={llmModel}
+                    onSelect={(model) => updateSetting("llm_model", model)}
+                    disabled={!enabled}
+                    placeholder="Select a model..."
+                    className="flex-1"
+                  />
+                ) : (
+                  <Input
+                    value={localModel}
+                    onChange={(e) => setLocalModel(e.target.value)}
+                    onBlur={handleModelBlur}
+                    disabled={!enabled}
+                    placeholder="llama3.2"
+                    className="flex-1"
+                  />
+                )}
                 <Button
                   variant="secondary"
                   onClick={handleRefreshModels}
@@ -201,8 +240,8 @@ export const SummarizationSettings: React.FC = () => {
                 </Button>
               </div>
               {availableModels.length > 0 && (
-                <div className="text-xs text-mid-gray">
-                  Available: {availableModels.join(", ")}
+                <div className="text-xs text-green-600">
+                  Found {availableModels.length} model{availableModels.length !== 1 ? 's' : ''}
                 </div>
               )}
             </div>

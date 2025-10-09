@@ -43,6 +43,8 @@ export const ProfileSchema = z.object({
   is_built_in: z.boolean(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
+  timeout_seconds: z.number().optional(),
+  enable_streaming: z.boolean().optional(),
 });
 
 export const SettingsSchema = z.object({
